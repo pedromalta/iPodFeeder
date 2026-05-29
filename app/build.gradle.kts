@@ -1,3 +1,6 @@
+import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.compose.multiplatform)
@@ -5,7 +8,13 @@ plugins {
 }
 
 kotlin {
-    jvm("desktop")
+    jvm("desktop") {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
+    }
+
+    jvmToolchain(17)
 
     sourceSets {
         val commonMain by getting {
@@ -39,9 +48,11 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "net.pedromalta.ipodfeeder.MainKt"
+        javaHome = "/Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home"
 
         nativeDistributions {
             packageName = "iPodFeeder"
+            targetFormats(TargetFormat.Dmg)
             appResourcesRootDir.set(project.layout.projectDirectory.dir("src/desktopMain/resources"))
             macOS {
                 iconFile.set(project.file("src/desktopMain/resources/icon.png"))
