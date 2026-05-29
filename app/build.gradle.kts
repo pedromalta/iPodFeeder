@@ -55,7 +55,7 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg)
             appResourcesRootDir.set(project.layout.projectDirectory.dir("src/desktopMain/resources"))
             macOS {
-                iconFile.set(project.file("src/desktopMain/resources/icon.png"))
+                iconFile.set(project.file("src/desktopMain/resources/icon.icns"))
             }
             windows {
                 iconFile.set(project.file("src/desktopMain/resources/icon.png"))

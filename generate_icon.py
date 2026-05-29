@@ -10,6 +10,10 @@ The iPod 3G (2003) featured:
 
 from PIL import Image, ImageDraw, ImageFilter
 import math
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
 
 SIZE = 1024
 
@@ -112,12 +116,56 @@ def make_icon(size):
     return img
 
 
+def build_icns_from_png(source_png: Path, output_icns: Path):
+    iconutil_path = shutil.which("iconutil")
+    sips_path = shutil.which("sips")
+    if not iconutil_path or not sips_path:
+        print("Skipping ICNS generation because 'iconutil' or 'sips' was not found.")
+        return
+
+    with tempfile.TemporaryDirectory(prefix="ipodfeeder-iconset-") as tmp_dir:
+        iconset_dir = Path(tmp_dir) / "icon.iconset"
+        iconset_dir.mkdir(parents=True, exist_ok=True)
+
+        sizes = [16, 32, 128, 256, 512]
+        for size in sizes:
+            normal_output = iconset_dir / f"icon_{size}x{size}.png"
+            retina_output = iconset_dir / f"icon_{size}x{size}@2x.png"
+            subprocess.run(
+                [sips_path, "-z", str(size), str(size), str(source_png), "--out", str(normal_output)],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            retina_size = size * 2
+            subprocess.run(
+                [sips_path, "-z", str(retina_size), str(retina_size), str(source_png), "--out", str(retina_output)],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+        shutil.copyfile(source_png, iconset_dir / "icon_512x512@2x.png")
+        output_icns.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            [iconutil_path, "-c", "icns", str(iconset_dir), "-o", str(output_icns)],
+            check=True,
+        )
+
+
 # ── Generate and save ────────────────────────────────────────────────────────
 icon_1024 = make_icon(1024)
 OUT_BASE = "/Users/pedromalta/AndroidStudioProjects/iPodFeeder/app/src"
 
-icon_1024.save(f"{OUT_BASE}/commonMain/composeResources/drawable/icon.png")
-icon_1024.save(f"{OUT_BASE}/desktopMain/resources/icon.png")
+common_png = Path(f"{OUT_BASE}/commonMain/composeResources/drawable/icon.png")
+desktop_png = Path(f"{OUT_BASE}/desktopMain/resources/icon.png")
+desktop_icns = Path(f"{OUT_BASE}/desktopMain/resources/icon.icns")
+
+icon_1024.save(common_png)
+icon_1024.save(desktop_png)
+build_icns_from_png(desktop_png, desktop_icns)
 
 print("Icon saved at 1024×1024 to both resource locations.")
+if desktop_icns.exists():
+    print(f"macOS ICNS saved to {desktop_icns}")
 
