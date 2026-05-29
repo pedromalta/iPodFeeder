@@ -68,23 +68,10 @@ def make_icon(size):
         fill=(60, 90, 80, 255)  # classic iPod LCD greenish tint
     )
 
-    # ── 4 Touch buttons row (prev / menu / next / play) ───────────────────────
-    BTN_Y = SY + SH + s(38)
-    BTN_H = s(28)
-    BTN_W = s(58)
-    gap = (BW - 4 * BTN_W) // 5
-    for i in range(4):
-        bx = BX + gap + i * (BTN_W + gap)
-        draw.rounded_rectangle(
-            [bx, BTN_Y, bx + BTN_W, BTN_Y + BTN_H],
-            radius=s(7),
-            fill=(195, 195, 193, 255)
-        )
-
     # ── Scroll wheel ─────────────────────────────────────────────────────────
-    WD = s(420)
+    WD = s(440)
     WX = BX + (BW - WD) // 2
-    WY = BTN_Y + BTN_H + s(42)
+    WY = SY + SH + s(60)
 
     # Outer ring (slightly darker)
     draw.ellipse(
