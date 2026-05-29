@@ -39,5 +39,18 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "net.pedromalta.ipodfeeder.MainKt"
+
+        nativeDistributions {
+            appResourcesRootDir.set(project.layout.projectDirectory.dir("src/desktopMain/resources"))
+            macOS {
+                iconFile.set(project.file("src/desktopMain/resources/icon.png"))
+            }
+            windows {
+                iconFile.set(project.file("src/desktopMain/resources/icon.png"))
+            }
+            linux {
+                iconFile.set(project.file("src/desktopMain/resources/icon.png"))
+            }
+        }
     }
 }
