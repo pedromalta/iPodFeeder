@@ -9,7 +9,6 @@ fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = "iPod Feeder",
-        state = rememberWindowState(width = 800.dp, height = 600.dp)
     ) {
         App()
     }

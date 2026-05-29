@@ -72,8 +72,8 @@ fun App() {
                 unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f),
                 disabledLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                disabledBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                 disabledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
@@ -81,7 +81,7 @@ fun App() {
             )
 
             val convertButtonColors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
+                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.95f),
                 contentColor = MaterialTheme.colorScheme.onPrimary,
                 disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
                 disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
@@ -89,15 +89,15 @@ fun App() {
 
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .fillMaxWidth()
+                    .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text("iPod Feeder", style = MaterialTheme.typography.headlineSmall)
                 Text(
                     "Paste a YouTube URL, convert to MP3, and keep files ready for Music import.",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline
                 )
 
                 OutlinedTextField(
@@ -194,16 +194,15 @@ fun App() {
                 Text("Progress", style = MaterialTheme.typography.titleMedium)
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
+                        .fillMaxSize()
                         .clip(RoundedCornerShape(12.dp))
-                        .padding(1.dp)
+                        .padding(0.dp)
                 ) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(12.dp),
-                        tonalElevation = 1.dp,
+                        tonalElevation = 2.dp,
                         shadowElevation = 0.dp
                     ) {
                         Column(
@@ -217,14 +216,14 @@ fun App() {
                                 Text(
                                     "No logs yet. Start a conversion to see detailed pipeline events.",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                                        color = MaterialTheme.colorScheme.outline
                                 )
                             } else {
                                 logLines.forEach { line ->
                                     Text(
                                         text = line,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.95f)
                                     )
                                 }
                             }
