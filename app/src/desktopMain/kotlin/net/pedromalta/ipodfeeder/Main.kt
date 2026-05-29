@@ -6,19 +6,22 @@ import `ipod feeder`.app.generated.resources.Res
 import `ipod feeder`.app.generated.resources.icon
 import org.jetbrains.compose.resources.painterResource
 
-fun main() = application {
-    val icon = painterResource(Res.drawable.icon)
-    Window(
-        onCloseRequest = ::exitApplication,
-        title = "iPod Feeder",
-        icon = icon,
-    ) {
-        // Apply macOS specific window hints
-        window.rootPane.apply {
-            putClientProperty("apple.awt.fullWindowContent", true)
-            putClientProperty("apple.awt.transparentTitleBar", true)
-            putClientProperty("apple.awt.windowTitleVisible", false)
+fun main() {
+    System.setProperty("apple.awt.application.name", "iPod Feeder")
+    application {
+        val icon = painterResource(Res.drawable.icon)
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = "iPod Feeder",
+            icon = icon,
+        ) {
+            // Apply macOS specific window hints
+            window.rootPane.apply {
+                putClientProperty("apple.awt.fullWindowContent", true)
+                putClientProperty("apple.awt.transparentTitleBar", true)
+                putClientProperty("apple.awt.windowTitleVisible", false)
+            }
+            App()
         }
-        App()
     }
 }

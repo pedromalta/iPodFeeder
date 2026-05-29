@@ -41,6 +41,7 @@ compose.desktop {
         mainClass = "net.pedromalta.ipodfeeder.MainKt"
 
         nativeDistributions {
+            packageName = "iPodFeeder"
             appResourcesRootDir.set(project.layout.projectDirectory.dir("src/desktopMain/resources"))
             macOS {
                 iconFile.set(project.file("src/desktopMain/resources/icon.png"))
