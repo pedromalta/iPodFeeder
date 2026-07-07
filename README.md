@@ -5,8 +5,7 @@ Desktop Kotlin Multiplatform app that downloads YouTube audio as MP3 and prepare
 ## Requirements
 
 - macOS
-- `yt-dlp` installed
-- `ffmpeg` installed
+- Java 17 for local Gradle builds and packaging
 
 ## Install the app on macOS
 
@@ -18,18 +17,7 @@ Desktop Kotlin Multiplatform app that downloads YouTube audio as MP3 and prepare
 
 If macOS warns that the app is from an unidentified developer, right-click the app and choose **Open** the first time.
 
-Install runtime dependencies first:
-
-```bash
-brew install yt-dlp ffmpeg
-```
-
-If conversion fails after launching the app from Finder, verify the tools are available from a normal shell:
-
-```bash
-yt-dlp --version
-ffmpeg -version
-```
+The packaged app now bundles `yt-dlp` and `ffmpeg` for the macOS architecture it was built on, so end users do not need to install them separately.
 
 ### Option 2: Run from source
 
@@ -39,6 +27,8 @@ For local development, you can run directly with Gradle:
 cd /Users/pedromalta/AndroidStudioProjects/iPodFeeder
 ./gradlew :app:run
 ```
+
+The first Gradle run downloads pinned `yt-dlp` and `ffmpeg` binaries and embeds them into the desktop app resources.
 
 ## Build a DMG for distribution
 
@@ -71,16 +61,16 @@ Share the generated `.dmg` file.
 
 Recipients should:
 
-1. Install `yt-dlp` and `ffmpeg`
-2. Open the DMG
-3. Drag `iPodFeeder.app` to `Applications`
-4. Launch the app
+1. Open the DMG
+2. Drag `iPodFeeder.app` to `Applications`
+3. Launch the app
 
 ## Development
 
 ```bash
 cd /Users/pedromalta/AndroidStudioProjects/iPodFeeder
 ./gradlew :app:run
+./gradlew :app:packageDistributionForCurrentOS
 ```
 
 ## Test
@@ -95,5 +85,4 @@ cd /Users/pedromalta/AndroidStudioProjects/iPodFeeder
 1. Paste a YouTube URL.
 2. Choose output directory.
 3. Click **Convert to MP3**.
-4. App runs `yt-dlp` + `ffmpeg`, tags title/artist, and embeds thumbnail when available.
-
+4. App runs bundled `yt-dlp` + `ffmpeg`, tags title/artist, and embeds thumbnail when available.

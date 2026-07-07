@@ -21,6 +21,7 @@ import kotlin.io.path.pathString
 class DesktopAudioProcessingEngine : AudioProcessingEngine {
 	private val httpClient = HttpClient(OkHttp)
 	private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+	private val bundledToolResolver = BundledToolResolver()
 
 	override suspend fun process(
 		request: AudioProcessingRequest,
@@ -37,8 +38,10 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 		log(onProgress, "Ensured output directory exists: ${outputDir.pathString}")
 
 		log(onProgress, "Checking dependency availability")
-		runCommand(listOf("yt-dlp", "--version"), onProgress, "yt-dlp version check")
-		runCommand(listOf("ffmpeg", "-version"), onProgress, "ffmpeg version check")
+		val ytDlpExecutable = resolveExecutable("yt-dlp", onProgress)
+		val ffmpegExecutable = resolveExecutable("ffmpeg", onProgress)
+		runCommand(listOf(ytDlpExecutable, "--version"), onProgress, "yt-dlp version check")
+		runCommand(listOf(ffmpegExecutable, "-version"), onProgress, "ffmpeg version check")
 
 		val tempDir = withContext(Dispatchers.IO) { Files.createTempDirectory("ipodfeeder-") }
 		log(onProgress, "Created temporary workspace: ${tempDir.pathString}")
@@ -46,7 +49,7 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 			log(onProgress, "Fetching video metadata from yt-dlp")
 			val metadataOutput = runCommand(
 				listOf(
-					"yt-dlp",
+					ytDlpExecutable,
 					"--skip-download",
 					"--no-warnings",
 					"--print",
@@ -67,7 +70,7 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 			log(onProgress, "yt-dlp output template: $sourceTemplate")
 			runCommand(
 				listOf(
-					"yt-dlp",
+					ytDlpExecutable,
 					"--no-playlist",
 					"-f",
 					"bestaudio",
@@ -100,7 +103,7 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 			log(onProgress, "Target MP3 file: ${outputFile.pathString}")
 
 			log(onProgress, "Converting to MP3 and embedding ID3 tags")
-			val ffmpegCommand = buildFfmpegCommand(sourceAudio, coverPath, outputFile, metadata)
+			val ffmpegCommand = buildFfmpegCommand(ffmpegExecutable, sourceAudio, coverPath, outputFile, metadata)
 			log(onProgress, "Prepared ffmpeg command with ${ffmpegCommand.size} arguments")
 			runCommand(ffmpegCommand, onProgress, "ffmpeg transcode")
 			log(onProgress, "MP3 created at ${outputFile.pathString} (${outputFile.readableSize()})")
@@ -128,13 +131,14 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 	}
 
 	private fun buildFfmpegCommand(
+		ffmpegExecutable: String,
 		sourceAudio: Path,
 		coverPath: Path?,
 		outputFile: Path,
 		metadata: TrackMetadata
 	): List<String> {
 		return buildList {
-			add("ffmpeg")
+			add(ffmpegExecutable)
 			add("-y")
 			add("-i")
 			add(sourceAudio.toString())
@@ -163,6 +167,20 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 				)
 			)
 		}
+	}
+
+	private fun resolveExecutable(
+		toolName: String,
+		onProgress: (String) -> Unit
+	): String {
+		val bundledTool = bundledToolResolver.resolve(toolName)
+		if (bundledTool != null) {
+			log(onProgress, "Using bundled $toolName from ${bundledTool.path.pathString}")
+			return bundledTool.path.toString()
+		}
+
+		log(onProgress, "Bundled $toolName not found, falling back to PATH")
+		return toolName
 	}
 
 	private suspend fun runCommand(
@@ -243,4 +261,3 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 		return if (size < 1024) "$size B" else "${size / 1024} KB"
 	}
 }
-
