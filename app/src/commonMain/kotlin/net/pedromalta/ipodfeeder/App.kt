@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -53,11 +54,75 @@ fun App() {
     var addToMusicLibrary by remember { mutableStateOf(true) }
     var isProcessing by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf<String?>(null) }
+    var urlPasteFeedback by remember { mutableStateOf<String?>(null) }
     var startedAtMs by remember { mutableStateOf<Long?>(null) }
     var downloadProgress by remember { mutableStateOf<Float?>(null) }
     var copyFeedback by remember { mutableStateOf<String?>(null) }
     val logLines = remember { mutableStateListOf<String>() }
     val logScrollState = rememberScrollState()
+
+    fun startConversion(youtubeUrl: String) {
+        val trimmedUrl = youtubeUrl.trim()
+        val trimmedOutputDirectory = outputDirectory.trim()
+        if (isProcessing || trimmedUrl.isBlank() || trimmedOutputDirectory.isBlank()) return
+
+        isProcessing = true
+        startedAtMs = System.currentTimeMillis()
+        downloadProgress = null
+        resultMessage = null
+        urlPasteFeedback = null
+        copyFeedback = null
+        logLines.clear()
+        logLines.add("[UI] Conversion requested")
+        logLines.add("[UI] URL: $trimmedUrl")
+        logLines.add("[UI] Output directory: $trimmedOutputDirectory")
+        logLines.add("[UI] Auto import enabled: $addToMusicLibrary")
+        scope.launch {
+            runCatching {
+                engine.process(
+                    request = AudioProcessingRequest(
+                        youtubeUrl = trimmedUrl,
+                        outputDirectory = trimmedOutputDirectory,
+                        addToMusicLibrary = addToMusicLibrary
+                    ),
+                    onProgress = { message ->
+                        logLines.add(message)
+                        if (message.contains("Downloading best audio stream")) {
+                            downloadProgress = 0f
+                        }
+                    },
+                    onDownloadProgress = { progress ->
+                        downloadProgress = progress
+                    }
+                )
+            }.onSuccess { result ->
+                val durationMs = startedAtMs?.let { System.currentTimeMillis() - it }
+                val musicImportStatus = if (result.addedToMusicLibrary) {
+                    " and imported it into Music"
+                } else {
+                    ""
+                }
+                resultMessage = "Saved ${result.title} by ${result.artist} to ${result.outputFilePath}$musicImportStatus"
+                if (durationMs != null) {
+                    logLines.add("[UI] Finished successfully in ${durationMs}ms")
+                }
+            }.onFailure { error ->
+                val durationMs = startedAtMs?.let { System.currentTimeMillis() - it }
+                val failureMessage = error.message
+                    ?.lineSequence()
+                    ?.lastOrNull { it.isNotBlank() }
+                    ?.trim()
+                    .orEmpty()
+                    .ifBlank { "Unknown error" }
+                resultMessage = "Failed: $failureMessage"
+                if (durationMs != null) {
+                    logLines.add("[UI] Failed after ${durationMs}ms")
+                }
+                logLines.add("[UI] Error details: $failureMessage")
+            }
+            isProcessing = false
+        }
+    }
 
     LaunchedEffect(logLines.size) {
         // Let Compose apply layout changes before auto-scrolling to max offset.
@@ -108,13 +173,45 @@ fun App() {
 
                 OutlinedTextField(
                     value = url,
-                    onValueChange = { url = it },
+                    onValueChange = {
+                        url = it
+                        urlPasteFeedback = null
+                    },
                     label = { Text("YouTube URL") },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isProcessing,
                     singleLine = true,
+                    trailingIcon = {
+                        IconButton(
+                            enabled = !isProcessing,
+                            onClick = {
+                                val result = pasteTextFromClipboard()
+                                val pastedText = result.text?.trim().orEmpty()
+                                if (pastedText.isNotBlank()) {
+                                    url = pastedText
+                                    urlPasteFeedback = null
+                                    startConversion(pastedText)
+                                } else {
+                                    urlPasteFeedback = result.errorMessage ?: "Clipboard does not contain text."
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentPaste,
+                                contentDescription = "Paste URL"
+                            )
+                        }
+                    },
                     colors = fieldColors
                 )
+
+                urlPasteFeedback?.let { feedback ->
+                    Text(
+                        text = feedback,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
 
                 OutlinedTextField(
                     value = outputDirectory,
@@ -146,63 +243,7 @@ fun App() {
                     Button(
                         enabled = !isProcessing && url.isNotBlank() && outputDirectory.isNotBlank(),
                         colors = convertButtonColors,
-                        onClick = {
-                            isProcessing = true
-                            startedAtMs = System.currentTimeMillis()
-                            downloadProgress = null
-                            resultMessage = null
-                            copyFeedback = null
-                            logLines.clear()
-                            logLines.add("[UI] Conversion requested")
-                            logLines.add("[UI] URL: ${url.trim()}")
-                            logLines.add("[UI] Output directory: ${outputDirectory.trim()}")
-                            logLines.add("[UI] Auto import enabled: $addToMusicLibrary")
-                            scope.launch {
-                                runCatching {
-                                    engine.process(
-                                        request = AudioProcessingRequest(
-                                            youtubeUrl = url.trim(),
-                                            outputDirectory = outputDirectory.trim(),
-                                            addToMusicLibrary = addToMusicLibrary
-                                        ),
-                                        onProgress = { message ->
-                                            logLines.add(message)
-                                            if (message.contains("Downloading best audio stream")) {
-                                                downloadProgress = 0f
-                                            }
-                                        },
-                                        onDownloadProgress = { progress ->
-                                            downloadProgress = progress
-                                        }
-                                    )
-                                }.onSuccess { result ->
-                                    val durationMs = startedAtMs?.let { System.currentTimeMillis() - it }
-                                    val musicImportStatus = if (result.addedToMusicLibrary) {
-                                        " and imported it into Music"
-                                    } else {
-                                        ""
-                                    }
-                                    resultMessage = "Saved ${result.title} by ${result.artist} to ${result.outputFilePath}$musicImportStatus"
-                                    if (durationMs != null) {
-                                        logLines.add("[UI] Finished successfully in ${durationMs}ms")
-                                    }
-                                }.onFailure { error ->
-                                    val durationMs = startedAtMs?.let { System.currentTimeMillis() - it }
-                                    val failureMessage = error.message
-                                        ?.lineSequence()
-                                        ?.lastOrNull { it.isNotBlank() }
-                                        ?.trim()
-                                        .orEmpty()
-                                        .ifBlank { "Unknown error" }
-                                    resultMessage = "Failed: $failureMessage"
-                                    if (durationMs != null) {
-                                        logLines.add("[UI] Failed after ${durationMs}ms")
-                                    }
-                                    logLines.add("[UI] Error details: $failureMessage")
-                                }
-                                isProcessing = false
-                            }
-                        }
+                        onClick = { startConversion(url) }
                     ) {
                         Text("Convert to MP3")
                     }
@@ -212,6 +253,7 @@ fun App() {
                         onClick = {
                             url = ""
                             resultMessage = null
+                            urlPasteFeedback = null
                             startedAtMs = null
                             downloadProgress = null
                             copyFeedback = null

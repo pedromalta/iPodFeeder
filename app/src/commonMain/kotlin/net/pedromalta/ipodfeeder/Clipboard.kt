@@ -5,3 +5,10 @@ data class ClipboardCopyResult(
 )
 
 expect fun copyTextToClipboard(text: String): ClipboardCopyResult
+
+data class ClipboardPasteResult(
+    val text: String? = null,
+    val errorMessage: String? = null
+)
+
+expect fun pasteTextFromClipboard(): ClipboardPasteResult
