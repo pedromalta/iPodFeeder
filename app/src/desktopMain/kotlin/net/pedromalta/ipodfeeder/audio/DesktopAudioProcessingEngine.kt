@@ -25,7 +25,8 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 
 	override suspend fun process(
 		request: AudioProcessingRequest,
-		onProgress: (String) -> Unit
+		onProgress: (String) -> Unit,
+		onDownloadProgress: (Float) -> Unit
 	): AudioProcessingResult {
 		require(request.youtubeUrl.isNotBlank()) { "YouTube URL is required." }
 		log(onProgress, "Starting processing request")
@@ -51,9 +52,10 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 				listOf(
 					ytDlpExecutable,
 					"--skip-download",
+					"--no-playlist",
 					"--no-warnings",
 					"--print",
-					"%(title)s\t%(uploader)s\t%(thumbnail)s",
+					"%(title)s\t%(uploader)s\t%(album)s\t%(thumbnail)s",
 					request.youtubeUrl
 				),
 				onProgress,
@@ -62,7 +64,7 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 			val metadataLine = metadataOutput.lineSequence().firstOrNull { it.isNotBlank() }
 				?: error("Could not read metadata from yt-dlp.")
 			val metadata = parseYtDlpMetadata(metadataLine)
-			log(onProgress, "Parsed metadata -> title='${metadata.title}', artist='${metadata.artist}'")
+			log(onProgress, "Parsed metadata -> title='${metadata.title}', artist='${metadata.artist}', album='${metadata.album}'")
 			log(onProgress, "Thumbnail URL present: ${metadata.thumbnailUrl != null}")
 
 			log(onProgress, "Downloading best audio stream")
@@ -79,7 +81,10 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 					request.youtubeUrl
 				),
 				onProgress,
-				"yt-dlp audio download"
+				"yt-dlp audio download",
+				onOutputLine = { line ->
+					parseYtDlpDownloadProgress(line)?.let(onDownloadProgress)
+				}
 			)
 
 			val sourceAudio = withContext(Dispatchers.IO) {
@@ -162,7 +167,7 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 					"-id3v2_version", "3",
 					"-metadata", "title=${metadata.title}",
 					"-metadata", "artist=${metadata.artist}",
-					"-metadata", "album=YouTube",
+					"-metadata", "album=${metadata.album}",
 					outputFile.toString()
 				)
 			)
@@ -173,20 +178,35 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 		toolName: String,
 		onProgress: (String) -> Unit
 	): String {
+		findExecutableOnPath(toolName)?.let { pathExecutable ->
+			log(onProgress, "Using $toolName from PATH: ${pathExecutable.pathString}")
+			return pathExecutable.toString()
+		}
+
 		val bundledTool = bundledToolResolver.resolve(toolName)
 		if (bundledTool != null) {
 			log(onProgress, "Using bundled $toolName from ${bundledTool.path.pathString}")
 			return bundledTool.path.toString()
 		}
 
-		log(onProgress, "Bundled $toolName not found, falling back to PATH")
+		log(onProgress, "$toolName was not found on PATH or in bundled resources")
 		return toolName
 	}
+
+	private fun findExecutableOnPath(toolName: String): Path? =
+		System.getenv("PATH")
+			.orEmpty()
+			.split(java.io.File.pathSeparator)
+			.asSequence()
+			.filter { it.isNotBlank() }
+			.map { Path.of(it, toolName) }
+			.firstOrNull { Files.isExecutable(it) }
 
 	private suspend fun runCommand(
 		args: List<String>,
 		onProgress: (String) -> Unit,
-		label: String
+		label: String,
+		onOutputLine: ((String) -> Unit)? = null
 	): String = withContext(Dispatchers.IO) {
 		val commandString = args.joinToString(" ")
 		log(onProgress, "[$label] Executing command: $commandString")
@@ -195,7 +215,14 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 			.redirectErrorStream(true)
 			.start()
 
-		val output = process.inputStream.bufferedReader().readText().trim()
+		val output = buildString {
+			process.inputStream.bufferedReader().useLines { lines ->
+				lines.forEach { line ->
+					onOutputLine?.invoke(line)
+					appendLine(line)
+				}
+			}
+		}.trim()
 		val exitCode = process.waitFor()
 		val elapsedMs = System.currentTimeMillis() - startTime
 		log(onProgress, "[$label] Exit code: $exitCode (${elapsedMs}ms)")
@@ -254,6 +281,16 @@ class DesktopAudioProcessingEngine : AudioProcessingEngine {
 	private fun String.summarizeForLog(maxLength: Int = 320): String {
 		val singleLine = replace("\n", " | ")
 		return if (singleLine.length <= maxLength) singleLine else singleLine.take(maxLength) + "..."
+	}
+
+	private fun parseYtDlpDownloadProgress(line: String): Float? {
+		val percentage = Regex("""\[download]\s+(\d+(?:\.\d+)?)%""")
+			.find(line)
+			?.groupValues
+			?.get(1)
+			?.toFloatOrNull()
+			?: return null
+		return (percentage / 100f).coerceIn(0f, 1f)
 	}
 
 	private fun Path.readableSize(): String {

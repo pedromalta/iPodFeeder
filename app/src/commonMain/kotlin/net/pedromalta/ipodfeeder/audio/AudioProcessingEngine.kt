@@ -3,7 +3,8 @@ package net.pedromalta.ipodfeeder.audio
 interface AudioProcessingEngine {
     suspend fun process(
         request: AudioProcessingRequest,
-        onProgress: (String) -> Unit = {}
+        onProgress: (String) -> Unit = {},
+        onDownloadProgress: (Float) -> Unit = {}
     ): AudioProcessingResult
 }
 
@@ -23,6 +24,6 @@ data class AudioProcessingResult(
 data class TrackMetadata(
     val title: String,
     val artist: String,
+    val album: String,
     val thumbnailUrl: String?
 )
-

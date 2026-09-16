@@ -22,7 +22,8 @@ There is no dedicated lint task configured in this repository today.
 
 ## Key conventions
 
-- Desktop builds now pin and bundle `yt-dlp` and `ffmpeg` for the current macOS architecture during Gradle resource processing. Runtime should prefer bundled executables and only fall back to PATH when those resources are unavailable.
+- Desktop builds pin and bundle `yt-dlp` and `ffmpeg` for the current macOS architecture during Gradle resource processing. Runtime should prefer executable PATH tools, then fall back to bundled resources when PATH does not provide them.
+- `prepareBundledDesktopTools` downloads pinned binaries and verifies their SHA-256 hashes before desktop resource processing. The resolver extracts those resources to a versioned cache under `~/Library/Application Support/iPodFeeder/bundled-tools`; preserve this versioned-cache behavior when changing tool packaging or resolution.
 - Keep platform-agnostic logic in `commonMain`; keep filesystem, process execution, AppleScript, and OS-default-path behavior in `desktopMain`.
 - Pipeline progress is part of the product behavior. When changing the conversion flow, preserve the `onProgress` logging pattern so the UI continues to show step-by-step status and failure details.
 - Output files are named from `"artist - title"` and then normalized with `sanitizeFileSegment(...)`. Preserve that flow unless a change explicitly updates file naming behavior.

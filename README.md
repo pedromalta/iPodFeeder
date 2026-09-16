@@ -17,7 +17,7 @@ Desktop Kotlin Multiplatform app that downloads YouTube audio as MP3 and prepare
 
 If macOS warns that the app is from an unidentified developer, right-click the app and choose **Open** the first time.
 
-The packaged app now bundles `yt-dlp` and `ffmpeg` for the macOS architecture it was built on, so end users do not need to install them separately.
+The packaged app bundles `yt-dlp` and `ffmpeg` for the macOS architecture it was built on, so end users do not need to install them separately. At runtime, the app uses compatible tools found on `PATH` first (such as Homebrew installations) and falls back to these bundled tools.
 
 ### Option 2: Run from source
 

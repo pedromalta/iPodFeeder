@@ -9,11 +9,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -49,6 +54,8 @@ fun App() {
     var isProcessing by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf<String?>(null) }
     var startedAtMs by remember { mutableStateOf<Long?>(null) }
+    var downloadProgress by remember { mutableStateOf<Float?>(null) }
+    var copyFeedback by remember { mutableStateOf<String?>(null) }
     val logLines = remember { mutableStateListOf<String>() }
     val logScrollState = rememberScrollState()
 
@@ -132,14 +139,19 @@ fun App() {
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Button(
                         enabled = !isProcessing && url.isNotBlank() && outputDirectory.isNotBlank(),
                         colors = convertButtonColors,
                         onClick = {
                             isProcessing = true
                             startedAtMs = System.currentTimeMillis()
+                            downloadProgress = null
                             resultMessage = null
+                            copyFeedback = null
                             logLines.clear()
                             logLines.add("[UI] Conversion requested")
                             logLines.add("[UI] URL: ${url.trim()}")
@@ -153,7 +165,15 @@ fun App() {
                                             outputDirectory = outputDirectory.trim(),
                                             addToMusicLibrary = addToMusicLibrary
                                         ),
-                                        onProgress = { message -> logLines.add(message) }
+                                        onProgress = { message ->
+                                            logLines.add(message)
+                                            if (message.contains("Downloading best audio stream")) {
+                                                downloadProgress = 0f
+                                            }
+                                        },
+                                        onDownloadProgress = { progress ->
+                                            downloadProgress = progress
+                                        }
                                     )
                                 }.onSuccess { result ->
                                     val durationMs = startedAtMs?.let { System.currentTimeMillis() - it }
@@ -168,11 +188,17 @@ fun App() {
                                     }
                                 }.onFailure { error ->
                                     val durationMs = startedAtMs?.let { System.currentTimeMillis() - it }
-                                    resultMessage = "Failed: ${error.message ?: "Unknown error"}"
+                                    val failureMessage = error.message
+                                        ?.lineSequence()
+                                        ?.lastOrNull { it.isNotBlank() }
+                                        ?.trim()
+                                        .orEmpty()
+                                        .ifBlank { "Unknown error" }
+                                    resultMessage = "Failed: $failureMessage"
                                     if (durationMs != null) {
                                         logLines.add("[UI] Failed after ${durationMs}ms")
                                     }
-                                    logLines.add("[UI] Error details: ${error.message ?: "Unknown error"}")
+                                    logLines.add("[UI] Error details: $failureMessage")
                                 }
                                 isProcessing = false
                             }
@@ -181,8 +207,29 @@ fun App() {
                         Text("Convert to MP3")
                     }
 
+                    Button(
+                        enabled = !isProcessing,
+                        onClick = {
+                            url = ""
+                            resultMessage = null
+                            startedAtMs = null
+                            downloadProgress = null
+                            copyFeedback = null
+                            logLines.clear()
+                        }
+                    ) {
+                        Text("Clear")
+                    }
+
                     if (isProcessing) {
-                        CircularProgressIndicator(modifier = Modifier.padding(top = 10.dp))
+                        if (downloadProgress == null) {
+                            LinearProgressIndicator(modifier = Modifier.weight(1f))
+                        } else {
+                            LinearProgressIndicator(
+                                progress = { downloadProgress ?: 0f },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
 
@@ -190,7 +237,34 @@ fun App() {
                     Text(it, style = MaterialTheme.typography.bodyMedium)
                 }
 
-                Text("Progress", style = MaterialTheme.typography.titleMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Progress", style = MaterialTheme.typography.titleMedium)
+                        copyFeedback?.let { feedback ->
+                            Text(
+                                text = feedback,
+                                modifier = Modifier.padding(start = 8.dp),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                    IconButton(
+                        enabled = logLines.isNotEmpty(),
+                        onClick = {
+                            val result = copyTextToClipboard(logLines.joinToString("\n"))
+                            copyFeedback = result.errorMessage?.let { "Copy failed: $it" } ?: "Copied"
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy progress report"
+                        )
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -204,26 +278,28 @@ fun App() {
                         tonalElevation = 2.dp,
                         shadowElevation = 0.dp
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(logScrollState)
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            if (logLines.isEmpty()) {
-                                Text(
-                                    "No logs yet. Start a conversion to see detailed pipeline events.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.outline
-                                )
-                            } else {
-                                logLines.forEach { line ->
+                        SelectionContainer {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(logScrollState)
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (logLines.isEmpty()) {
                                     Text(
-                                        text = line,
+                                        "No logs yet. Start a conversion to see detailed pipeline events.",
                                         style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.95f)
+                                        color = MaterialTheme.colorScheme.outline
                                     )
+                                } else {
+                                    logLines.forEach { line ->
+                                        Text(
+                                            text = line,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.95f)
+                                        )
+                                    }
                                 }
                             }
                         }
